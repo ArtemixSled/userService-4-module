@@ -3,13 +3,10 @@ package org.example.controller;
 import org.example.dto.UserDto;
 import org.example.service.UserService;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
 import jakarta.validation.Valid;
-
+import org.springframework.web.bind.annotation.*;
 import java.net.URI;
 import java.util.List;
-
 
 /**
  * REST-контроллер для управления пользователями.
@@ -36,7 +33,7 @@ public class UserController {
 
     @PostMapping
     public ResponseEntity<UserDto> create(@Valid @RequestBody UserDto dto) {
-        var created = service.create(dto);
+        UserDto created = service.create(dto);
         return ResponseEntity
                 .created(URI.create("/api/users/" + created.getId()))
                 .body(created);

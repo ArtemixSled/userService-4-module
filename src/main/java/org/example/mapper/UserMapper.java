@@ -6,6 +6,7 @@ import org.example.model.User;
 /**
  * Класс для преобразования между сущностью User и DTO UserDto.
  */
+
 public class UserMapper {
 
     /**
