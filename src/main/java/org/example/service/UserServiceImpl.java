@@ -1,29 +1,37 @@
 package org.example.service;
 
+import lombok.extern.slf4j.Slf4j;
+import org.example.dto.NotificationMessageDto;
 import org.example.dto.UserDto;
 import org.example.mapper.UserMapper;
+import org.example.model.User;
 import org.example.repository.UserRepository;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
+
 import static java.util.stream.Collectors.toList;
 
 /**
  * Сервис для управления пользователями.
  * <p>Реализует интерфейс UserService, работает через Spring Data JPA репозиторий.</p>
  */
+@Slf4j
 @Service
 @Transactional
 public class UserServiceImpl implements UserService {
     private final UserRepository repo;
+    private final KafkaTemplate<String, NotificationMessageDto> kafka;
 
     /**
      * Конструктор для внедрения UserRepository.
      *
      * @param repo репозиторий пользователей
      */
-    public UserServiceImpl(UserRepository repo) {
+    public UserServiceImpl(UserRepository repo, KafkaTemplate<String, NotificationMessageDto> kafka) {
         this.repo = repo;
+        this.kafka = kafka;
     }
 
     /**
@@ -51,8 +59,13 @@ public class UserServiceImpl implements UserService {
      */
     @Override
     public UserDto create(UserDto dto) {
-        var saved = repo.save(UserMapper.toEntity(dto));
-        return UserMapper.toDto(saved);
+        User saved = repo.save(UserMapper.toEntity(dto));
+        UserDto result = UserMapper.toDto(saved);
+
+        log.info("Создан пользователь {}, шлём событие CREATE в Kafka…", result.getEmail());
+        kafka.send("user-events", new NotificationMessageDto("CREATE", result.getEmail()));
+
+        return result;
     }
 
     /**
@@ -60,12 +73,12 @@ public class UserServiceImpl implements UserService {
      */
     @Override
     public UserDto update(Long id, UserDto dto) {
-        var existing = repo.findById(id)
+        User existing = repo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Пользователь не найден"));
         existing.setName(dto.getName());
         existing.setEmail(dto.getEmail());
         existing.setAge(dto.getAge());
-        var updated = repo.save(existing);
+        User updated = repo.save(existing);
         return UserMapper.toDto(updated);
     }
 
@@ -74,6 +87,9 @@ public class UserServiceImpl implements UserService {
      */
     @Override
     public void delete(Long id) {
+        User existing = repo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Пользователь не найден"));
         repo.deleteById(id);
+        kafka.send("user-events", new NotificationMessageDto("DELETE", existing.getEmail()));
     }
 }
