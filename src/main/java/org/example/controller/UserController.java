@@ -1,49 +1,72 @@
 package org.example.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.example.dto.UserDto;
+import org.example.dto.UserModelAssembler;
 import org.example.service.UserService;
+import org.springframework.hateoas.CollectionModel;
+import org.springframework.hateoas.EntityModel;
 import org.springframework.http.ResponseEntity;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
-import java.net.URI;
 import java.util.List;
+
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 
 /**
  * REST-контроллер для управления пользователями.
  * <p>Обрабатывает HTTP-запросы по пути /api/users и делегирует операции UserService.</p>
  */
+@Tag(name = "Пользователи", description = "Операции над пользователями")
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
     private final UserService service;
+    private final UserModelAssembler assembler;
 
-    public UserController(UserService service) {
+    public UserController(UserService service, UserModelAssembler assembler) {
         this.service = service;
+        this.assembler = assembler;
     }
 
+    @Operation(summary = "Получить всех пользователей")
     @GetMapping
-    public List<UserDto> getAll() {
-        return service.findAll();
+    public CollectionModel<EntityModel<UserDto>> getAll() {
+        List<EntityModel<UserDto>> users = service.findAll().stream()
+                .map(assembler::toModel)
+                .toList();
+
+        return CollectionModel.of(users, linkTo(methodOn(UserController.class).getAll()).withSelfRel()
+        );
     }
 
+    @Operation(summary = "Получить пользователя по ID")
     @GetMapping("/{id}")
-    public UserDto getById(@PathVariable Long id) {
-        return service.findById(id);
+    public EntityModel<UserDto> getById(@PathVariable Long id) {
+        UserDto dto = service.findById(id);
+        return assembler.toModel(dto);
     }
 
+    @Operation(summary = "Создать нового пользователя")
     @PostMapping
-    public ResponseEntity<UserDto> create(@Valid @RequestBody UserDto dto) {
+    public ResponseEntity<EntityModel<UserDto>> create(@Valid @RequestBody UserDto dto) {
         UserDto created = service.create(dto);
+        EntityModel<UserDto> model = assembler.toModel(created);
         return ResponseEntity
-                .created(URI.create("/api/users/" + created.getId()))
-                .body(created);
+                .created(model.getRequiredLink("self").toUri())
+                .body(model);
     }
 
+    @Operation(summary = "Обновить пользователя по ID")
     @PutMapping("/{id}")
-    public UserDto update(@PathVariable Long id, @Valid @RequestBody UserDto dto) {
-        return service.update(id, dto);
+    public EntityModel<UserDto> update(@PathVariable Long id, @Valid @RequestBody UserDto dto) {
+        UserDto updated = service.update(id, dto);
+        return assembler.toModel(updated);
     }
 
+    @Operation(summary = "Удалить пользователя по ID")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         service.delete(id);
